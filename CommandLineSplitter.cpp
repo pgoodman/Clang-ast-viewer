@@ -8,84 +8,79 @@
 #include <string>
 #include <cassert>
 
-std::vector<std::string> splitCommandLine(std::string const &cmdline)
+std::vector<std::string> splitCommandLine(std::string const &command)
 {
-    int i;
-    char **argv = NULL;
-    int argc;
-    std::vector<std::string> result;
-    std::vector<std::string> empty;
-    // Posix.
-#ifndef _WIN32
-    {
-        wordexp_t p;
+  size_t data_size = (command.size() * 2) + 1;
 
-        // Note! This expands shell variables.
-        if (wordexp(cmdline.c_str(), &p, 0))
-        {
-            return empty;
+  std::unique_ptr<char[]> data(new char[data_size]);
+
+  std::vector<std::string> argv;
+
+  auto arg_data_ptr = &(data[0]);
+  memset(arg_data_ptr, 0, data_size);
+
+  auto last_token = arg_data_ptr;
+
+  bool prev_is_escaped = false;
+  bool in_container = false;
+  char container_ch = '\0';
+
+  for (size_t i = 0; i < command.size(); ) {
+    const auto ch = command[i++];
+    if ('\\' == ch) {
+      if (prev_is_escaped) {
+        *arg_data_ptr++ = ch;
+        prev_is_escaped = false;
+        continue;
+
+      } else if (in_container) {
+        *arg_data_ptr++ = ch;
+        continue;
+
+      } else {
+        prev_is_escaped = true;
+      }
+
+    } else if (' ' == ch || '\t' == ch || '\r' == ch || '\n' == ch) {
+      if (prev_is_escaped) {
+        prev_is_escaped = false;
+
+      } else if (in_container) {
+        *arg_data_ptr++ = ch;
+
+      } else if (last_token[0]) {
+        *arg_data_ptr++ = '\0';
+        argv.push_back(last_token);
+        last_token = arg_data_ptr;
+      }
+
+    } else if ('"' == ch || '\'' == ch) {
+      if (prev_is_escaped) {
+        *arg_data_ptr++ = '\\';
+        *arg_data_ptr++ = ch;
+        prev_is_escaped = false;
+
+      } else if (in_container) {
+        *arg_data_ptr++ = ch;
+        if (ch == container_ch) {
+          in_container = false;
+          container_ch = '\0';
         }
 
-        argc = p.we_wordc;
-
-        if (!(argv = (char **) calloc(argc, sizeof(char *))))
-        {
-            goto fail;
-        }
-
-        for (i = 0; i < p.we_wordc; i++)
-        {
-            result.push_back(p.we_wordv[i]);
-        }
-
-        wordfree(&p);
-
-        return result;
-    fail:
-        wordfree(&p);
+      } else {
+        *arg_data_ptr++ = ch;
+        in_container = true;
+        container_ch = ch;
+      }
+    } else {
+      *arg_data_ptr++ = ch;
     }
-#else // WIN32
-    {
-        wchar_t **wargs = NULL;
-        size_t needed = 0;
-        wchar_t *cmdlinew = NULL;
-        size_t len = cmdline.size() + 1;
+  }
 
-        if (!(cmdlinew = static_cast<wchar_t*>(calloc(len, sizeof(wchar_t)))))
-            goto fail;
+  if (last_token[0]) {
+    *arg_data_ptr++ = '\0';
+    argv.push_back(last_token);
+  }
 
-        if (!MultiByteToWideChar(CP_ACP, 0, cmdline.c_str(), -1, cmdlinew, len))
-            goto fail;
-
-        if (!(wargs = CommandLineToArgvW(cmdlinew, &argc)))
-            goto fail;
-
-        // Convert from wchar_t * to ANSI char *
-        for (i = 0; i < argc; i++)
-        {
-            // Get the size needed for the target buffer.
-            // CP_ACP = Ansi Codepage.
-            needed = WideCharToMultiByte(CP_ACP, 0, wargs[i], -1,
-                NULL, 0, NULL, NULL);
-            char *argv;
-            if (!(argv = static_cast<char*>(malloc(needed))))
-                goto fail;
-
-            // Do the conversion.
-            needed = WideCharToMultiByte(CP_ACP, 0, wargs[i], -1,
-                argv, needed, NULL, NULL);
-            result.push_back(argv);
-            free(argv);
-        }
-
-        if (wargs) LocalFree(wargs);
-        if (cmdlinew) free(cmdlinew);
-        return result;
-
-    fail:
-        if (wargs) LocalFree(wargs);
-        if (cmdlinew) free(cmdlinew);
-    }
-#endif // WIN32
-    return empty;
+  return argv;
 }
