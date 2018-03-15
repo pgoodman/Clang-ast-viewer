@@ -1,5 +1,6 @@
 #pragma once
-
+#include <QMetaType>
+#include <QObject>
 #include <qabstractitemmodel.h>
 #include "AstReader.h"
 
