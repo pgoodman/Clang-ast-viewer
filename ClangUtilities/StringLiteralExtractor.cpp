@@ -217,8 +217,8 @@ bool convertUTF32ToUTF8String(ArrayRef<char> SrcBytes, std::string &Out) {
     if (SrcBytes.empty())
         return true;
 
-    const UTF32 *Src = reinterpret_cast<const UTF32 *>(SrcBytes.begin());
-    const UTF32 *SrcEnd = reinterpret_cast<const UTF32 *>(SrcBytes.end());
+    const llvm::UTF32 *Src = reinterpret_cast<const llvm::UTF32 *>(SrcBytes.begin());
+    const llvm::UTF32 *SrcEnd = reinterpret_cast<const llvm::UTF32 *>(SrcBytes.end());
 
     // Byteswap if necessary.
     // Ignore any potential BOM: We won't have the here...
@@ -226,14 +226,14 @@ bool convertUTF32ToUTF8String(ArrayRef<char> SrcBytes, std::string &Out) {
     // Just allocate enough space up front.  We'll shrink it later.  Allocate
     // enough that we can fit a null terminator without reallocating.
     Out.resize(SrcBytes.size() * UNI_MAX_UTF8_BYTES_PER_CODE_POINT + 1);
-    UTF8 *Dst = reinterpret_cast<UTF8 *>(&Out[0]);
-    UTF8 *DstEnd = Dst + Out.size();
+    llvm::UTF8 *Dst = reinterpret_cast<llvm::UTF8 *>(&Out[0]);
+    llvm::UTF8 *DstEnd = Dst + Out.size();
 
-    ConversionResult CR =
-        ConvertUTF32toUTF8(&Src, SrcEnd, &Dst, DstEnd, strictConversion);
-    assert(CR != targetExhausted);
+    llvm::ConversionResult CR =
+        ConvertUTF32toUTF8(&Src, SrcEnd, &Dst, DstEnd, llvm::strictConversion);
+    assert(CR != llvm::targetExhausted);
 
-    if (CR != conversionOK) {
+    if (CR != llvm::conversionOK) {
         Out.clear();
         return false;
     }
